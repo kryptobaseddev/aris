@@ -1,0 +1,28 @@
+ARIS Database Migrations
+========================
+
+This directory contains Alembic migrations for the ARIS metadata database.
+
+Usage:
+
+1. Create a new migration (autogenerate):
+   aris db revision --autogenerate -m "description"
+
+2. Apply migrations:
+   aris db migrate
+
+3. Check current migration status:
+   aris db status
+
+4. Downgrade one version:
+   aris db downgrade -1
+
+5. Show migration history:
+   aris db history
+
+The migrations use the database path from ARIS configuration (default: .aris/metadata.db).
+
+Manual migrations can be created with:
+   aris db revision -m "description"
+
+Then edit the generated file in alembic/versions/ to add upgrade/downgrade operations.

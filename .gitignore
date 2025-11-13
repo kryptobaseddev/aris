@@ -1,0 +1,145 @@
+# ARIS Project .gitignore
+
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============================================================================
+# Virtual Environments
+# ============================================================================
+venv/
+ENV/
+env/
+.venv/
+poetry.lock
+.python-version
+
+# ============================================================================
+# IDE / Editor
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================================================
+# Testing & Coverage
+# ============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# ============================================================================
+# ARIS Specific
+# ============================================================================
+
+# Environment & Secrets (CRITICAL - Never commit!)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# ARIS Data Directories
+.aris/
+research/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ChromaDB Vector Store
+chroma_data/
+*.chroma
+
+# Research artifacts
+*.research.json
+*.session.json
+
+# Temporary & Cache
+*.tmp
+*.cache
+.cache/
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Backups
+*.bak
+*.backup
+*.old
+
+# ============================================================================
+# Documentation Build Artifacts
+# ============================================================================
+docs/_build/
+docs/.doctrees/
+site/
+
+# ============================================================================
+# OS Specific
+# ============================================================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# Alembic (Database Migrations)
+# ============================================================================
+# Keep migrations but ignore auto-generated files
+# alembic/versions/__pycache__/
+
+# ============================================================================
+# Optional: Agent Working Documents (Uncomment if needed)
+# ============================================================================
+# These are temporary agent working files - can be gitignored if desired
+# claudedocs/AGENT*.md
+# claudedocs/WAVE*.md
+# claudedocs/README_WAVE*.md
+# test-results/
+
+# ============================================================================
+# Security: Never Commit These
+# ============================================================================
+*_SECRET*
+*_API_KEY*
+credentials.json
+secrets.yaml
+api_keys.txt
