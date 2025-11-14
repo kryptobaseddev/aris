@@ -47,7 +47,7 @@ def mock_document_store():
 def orchestrator(mock_config, mock_reasoning_engine, mock_document_store):
     """Create ResearchOrchestrator with mocked dependencies."""
     with patch("aris.core.research_orchestrator.ReasoningEngine", return_value=mock_reasoning_engine), \
-         patch("aris.core.research_orchestrator.DocumentStore", return_value=mock_document_store), \
+         patch("aris.storage.DocumentStore", return_value=mock_document_store), \
          patch("aris.core.research_orchestrator.DatabaseManager"):
         return ResearchOrchestrator(mock_config)
 
@@ -58,7 +58,7 @@ class TestResearchOrchestrator:
     def test_initialization(self, mock_config):
         """Test orchestrator initialization."""
         with patch("aris.core.research_orchestrator.ReasoningEngine"), \
-             patch("aris.core.research_orchestrator.DocumentStore"), \
+             patch("aris.storage.DocumentStore"), \
              patch("aris.core.research_orchestrator.DatabaseManager"):
             orchestrator = ResearchOrchestrator(mock_config)
 

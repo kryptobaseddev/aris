@@ -7,14 +7,19 @@ Provides:
 - SQLite database for metadata
 """
 
+from typing import TYPE_CHECKING
+
 from aris.storage.database import DatabaseManager
-from aris.storage.document_store import DocumentStore
+from aris.storage.document_store import DocumentStore, DocumentStoreError
 from aris.storage.git_manager import GitManager
-from aris.storage.vector_store import VectorStore
+
+if TYPE_CHECKING:
+    from aris.storage.vector_store import VectorStore
 
 __all__ = [
     "DatabaseManager",
     "GitManager",
     "DocumentStore",
+    "DocumentStoreError",
     "VectorStore",
 ]

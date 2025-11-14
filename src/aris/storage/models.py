@@ -15,6 +15,8 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     Index,
+    Boolean,
+    JSON,
 )
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -307,3 +309,143 @@ class Conflict(Base):
 
     def __repr__(self) -> str:
         return f"<Conflict(id={self.id}, type={self.conflict_type}, severity={self.severity}, status={self.status})>"
+
+
+class SourceCredibility(Base):
+    """Source credibility tracking with verification history."""
+
+    __tablename__ = "source_credibility"
+
+    source_id = Column(String(36), primary_key=True)
+
+    # Source identity
+    domain = Column(String(500), nullable=False, index=True)
+    url = Column(String(2000), nullable=False, unique=True)
+
+    # Credibility assessment
+    tier = Column(String(20), nullable=False, index=True)
+    credibility_score = Column(Float, nullable=False)
+
+    # Verification tracking
+    verification_status = Column(String(50), nullable=True)
+    verification_count = Column(Integer, nullable=False, default=0)
+    last_verified = Column(DateTime, nullable=True)
+
+    # Usage statistics
+    times_cited = Column(Integer, nullable=False, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<SourceCredibility(source_id={self.source_id}, domain={self.domain}, tier={self.tier})>"
+
+
+class QualityMetrics(Base):
+    """Research session quality metrics and validation results."""
+
+    __tablename__ = "quality_metrics"
+
+    session_id = Column(String(36), primary_key=True)
+
+    # Query information
+    query = Column(String(2000), nullable=False)
+
+    # Source statistics
+    total_sources = Column(Integer, nullable=False, default=0)
+    distinct_sources = Column(Integer, nullable=False, default=0)
+
+    # Execution metrics
+    hops_executed = Column(Integer, nullable=False, default=0)
+    total_cost = Column(Float, nullable=False, default=0.0)
+    duration_seconds = Column(Float, nullable=False, default=0.0)
+
+    # Pre/Post execution reports (stored as JSON)
+    pre_execution_report = Column(JSON, nullable=True)
+    post_execution_report = Column(JSON, nullable=True)
+
+    # Confidence breakdown (stored as JSON)
+    confidence_breakdown = Column(JSON, nullable=True)
+
+    # Overall assessment
+    overall_quality_score = Column(Float, nullable=False, default=0.0, index=True)
+    validation_passed = Column(Boolean, nullable=False, default=False, index=True)
+    gate_level_used = Column(String(20), nullable=False, default="standard", index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    validation_rules = relationship(
+        "ValidationRuleHistory",
+        back_populates="quality_metric",
+        cascade="all, delete-orphan"
+    )
+    contradictions = relationship(
+        "ContradictionDetection",
+        back_populates="quality_metric",
+        cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<QualityMetrics(session_id={self.session_id}, score={self.overall_quality_score}, passed={self.validation_passed})>"
+
+
+class ValidationRuleHistory(Base):
+    """History of validation rule evaluations for quality gates."""
+
+    __tablename__ = "validation_rule_history"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(String(36), ForeignKey("quality_metrics.session_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Rule details
+    rule_name = Column(String(200), nullable=False)
+    metric_name = Column(String(200), nullable=False)
+    operator = Column(String(20), nullable=False)
+
+    # Evaluation results
+    threshold = Column(String(500), nullable=True)
+    actual_value = Column(String(500), nullable=True)
+    passed = Column(Boolean, nullable=False, index=True)
+
+    # Gate context
+    gate_level = Column(String(20), nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    quality_metric = relationship("QualityMetrics", back_populates="validation_rules")
+
+    def __repr__(self) -> str:
+        return f"<ValidationRuleHistory(rule={self.rule_name}, metric={self.metric_name}, passed={self.passed})>"
+
+
+class ContradictionDetection(Base):
+    """Detected contradictions between research findings."""
+
+    __tablename__ = "contradiction_detection"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(String(36), ForeignKey("quality_metrics.session_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Contradiction details
+    finding_1 = Column(Text, nullable=False)
+    finding_2 = Column(Text, nullable=False)
+    conflict_score = Column(Float, nullable=False)
+    severity = Column(String(50), nullable=False, index=True)
+
+    # Resolution
+    resolution_suggestion = Column(Text, nullable=True)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    quality_metric = relationship("QualityMetrics", back_populates="contradictions")
+
+    def __repr__(self) -> str:
+        return f"<ContradictionDetection(id={self.id}, severity={self.severity}, score={self.conflict_score})>"

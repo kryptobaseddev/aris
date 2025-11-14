@@ -16,6 +16,7 @@ class DocumentStatus(str, Enum):
     RESEARCHING = "researching"
     VALIDATING = "validating"
     REVIEWED = "reviewed"
+    PUBLISHED = "published"
     DEPRECATED = "deprecated"
 
 

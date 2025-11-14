@@ -65,6 +65,7 @@ class ProgressTracker:
         self.callbacks: list[Callable[[ProgressEvent], None]] = []
         self._started_at: Optional[datetime] = None
         self._completed_at: Optional[datetime] = None
+        self.hops: list[dict[str, Any]] = []
 
     def register_callback(self, callback: Callable[[ProgressEvent], None]) -> None:
         """Register a callback to receive progress events.
@@ -182,6 +183,15 @@ class ProgressTracker:
             total=max_hops
         )
 
+    def record_hop(self, hop_data: dict[str, Any]) -> None:
+        """Record research hop data for tracking and analysis.
+
+        Args:
+            hop_data: Dictionary containing hop information (hop_number, query, results, etc.)
+        """
+        self.hops.append(hop_data)
+        logger.debug(f"Recorded hop data: hop_number={hop_data.get('hop_number', 'unknown')}")
+
     @property
     def duration_seconds(self) -> Optional[float]:
         """Get duration of tracked operation in seconds.
@@ -227,6 +237,7 @@ class ProgressTracker:
     def clear(self) -> None:
         """Clear all tracked events and reset state."""
         self.events.clear()
+        self.hops.clear()
         self._started_at = None
         self._completed_at = None
         logger.debug("Progress tracker cleared")

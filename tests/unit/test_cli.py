@@ -36,6 +36,7 @@ def mock_config_manager(mock_config):
         instance.load.return_value = mock_config
         instance.validate.return_value = {"valid": True, "errors": [], "warnings": []}
         instance._profile = ConfigProfile.DEVELOPMENT
+        instance._config = mock_config
         mock.get_instance.return_value = instance
         yield mock
 

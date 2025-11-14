@@ -46,10 +46,15 @@ class CostTracker:
         print(f"Total cost: ${summary['total_cost']:.2f}")
     """
 
-    def __init__(self):
-        """Initialize cost tracker."""
+    def __init__(self, budget_limit: Optional[float] = None):
+        """Initialize cost tracker.
+
+        Args:
+            budget_limit: Optional budget limit in dollars
+        """
         self.operations: list[CostOperation] = []
         self.total_cost: float = 0.0
+        self.budget_limit: Optional[float] = budget_limit
 
     def record_operation(
         self, operation_type: str, cost: float, metadata: Optional[dict] = None
@@ -60,6 +65,9 @@ class CostTracker:
             operation_type: Type of operation (search, extract, crawl, map)
             cost: Cost in dollars
             metadata: Optional metadata about the operation
+
+        Raises:
+            BudgetExceededError: If budget_limit is set and total_cost exceeds it
         """
         operation = CostOperation(
             operation_type=operation_type,
@@ -68,6 +76,13 @@ class CostTracker:
         )
         self.operations.append(operation)
         self.total_cost += cost
+
+        # Enforce budget limit if set
+        if self.budget_limit is not None and self.total_cost > self.budget_limit:
+            raise BudgetExceededError(
+                f"Budget limit ${self.budget_limit:.2f} exceeded: "
+                f"current cost ${self.total_cost:.2f}"
+            )
 
     def get_summary(self) -> dict[str, Any]:
         """Get cost summary.
@@ -93,6 +108,9 @@ class CostTracker:
         self.operations = []
         self.total_cost = 0.0
 
+    # Alias for backward compatibility
+    track_operation = record_operation
+
 
 class TavilyAPIError(Exception):
     """Base exception for Tavily API errors."""
@@ -108,6 +126,12 @@ class TavilyRateLimitError(TavilyAPIError):
 
 class TavilyAuthenticationError(TavilyAPIError):
     """Authentication failed."""
+
+    pass
+
+
+class BudgetExceededError(TavilyAPIError):
+    """Budget limit exceeded."""
 
     pass
 

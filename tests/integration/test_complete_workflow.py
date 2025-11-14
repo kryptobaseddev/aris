@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 from aris.core.config import ArisConfig
 from aris.core.deduplication_gate import DeduplicationAction, DeduplicationGate, DeduplicationResult
@@ -57,7 +58,7 @@ def test_config(temp_project_dir):
     )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def database_manager(test_config):
     """Create and initialize database manager."""
     manager = DatabaseManager(test_config.database_path)
@@ -66,14 +67,14 @@ async def database_manager(test_config):
     await manager.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def document_store(database_manager):
     """Create document store with database manager."""
     store = DocumentStore(database_manager)
     yield store
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def session_manager(database_manager):
     """Create session manager with database manager."""
     manager = SessionManager(database_manager)

@@ -7,6 +7,7 @@ and help identify performance regressions.
 import asyncio
 import time
 import pytest
+import pytest_asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from aris.core.config import ArisConfig
@@ -36,7 +37,7 @@ def benchmark_config(tmp_path):
     )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def benchmark_db(benchmark_config):
     """Create database for benchmarks."""
     manager = DatabaseManager(benchmark_config.database_path)
@@ -45,13 +46,13 @@ async def benchmark_db(benchmark_config):
     await manager.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def benchmark_doc_store(benchmark_db):
     """Create document store for benchmarks."""
     return DocumentStore(benchmark_db)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def benchmark_session_manager(benchmark_db):
     """Create session manager for benchmarks."""
     return SessionManager(benchmark_db)

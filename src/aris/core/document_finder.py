@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Optional
 
 from aris.models.document import Document
+from aris.storage import DocumentStore
 from aris.storage.database import DatabaseManager
-from aris.storage.document_store import DocumentStore
 from aris.storage.repositories import DocumentRepository
 from aris.storage.vector_store import VectorStore, VectorStoreError
 

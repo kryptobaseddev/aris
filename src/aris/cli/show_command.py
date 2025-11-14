@@ -9,7 +9,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from aris.core.config import ConfigManager, ConfigurationError
-from aris.storage.document_store import DocumentStore, DocumentStoreError
+from aris.storage import DocumentStore, DocumentStoreError
 
 console = Console()
 

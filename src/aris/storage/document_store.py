@@ -10,9 +10,10 @@ import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from aris.core.document_merger import DocumentMerger, MergeStrategy
+if TYPE_CHECKING:
+    from aris.core.document_merger import DocumentMerger, MergeStrategy
 from aris.models.config import ArisConfig
 from aris.models.document import Document, DocumentMetadata
 from aris.storage.database import DatabaseManager
@@ -44,6 +45,8 @@ class DocumentStore:
         Args:
             config: ARIS configuration
         """
+        from aris.core.document_merger import DocumentMerger
+
         self.config = config
         self.research_dir = Path(config.research_dir)
         self.db = DatabaseManager(Path(config.database_path))
@@ -116,7 +119,10 @@ class DocumentStore:
         
         logger.info(f"Created document: {title} ({doc_id})")
         return document
-    
+
+    # Backward compatibility alias
+    save_document = create_document
+
     def load_document(self, file_path: Path) -> Document:
         """Load document from file system.
         
@@ -229,6 +235,9 @@ class DocumentStore:
             existing_doc = self.load_document(file_path)
         except DocumentStoreError as e:
             raise DocumentStoreError(f"Failed to load document for merge: {e}")
+
+        # Import at runtime to avoid circular dependency
+        from aris.core.document_merger import MergeStrategy
 
         # Convert strategy string to enum
         try:

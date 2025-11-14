@@ -5,6 +5,7 @@ to pass before any release or major changes.
 """
 
 import pytest
+import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aris.core.config import ArisConfig
@@ -38,7 +39,7 @@ class TestCriticalPath_QueryIngestion:
             sequential_mcp_path="npx",
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_manager(self, test_config):
         """Create database manager."""
         manager = DatabaseManager(test_config.database_path)
@@ -103,7 +104,7 @@ class TestCriticalPath_Deduplication:
             sequential_mcp_path="npx",
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_manager(self, test_config):
         """Create database manager."""
         manager = DatabaseManager(test_config.database_path)
@@ -111,7 +112,7 @@ class TestCriticalPath_Deduplication:
         yield manager
         await manager.close()
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def doc_store(self, db_manager):
         """Create document store."""
         return DocumentStore(db_manager)
@@ -196,7 +197,7 @@ class TestCriticalPath_DocumentStorage:
             sequential_mcp_path="npx",
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_manager(self, test_config):
         """Create database manager."""
         manager = DatabaseManager(test_config.database_path)
@@ -204,7 +205,7 @@ class TestCriticalPath_DocumentStorage:
         yield manager
         await manager.close()
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def doc_store(self, db_manager):
         """Create document store."""
         return DocumentStore(db_manager)
@@ -292,7 +293,7 @@ class TestCriticalPath_SessionPersistence:
             sequential_mcp_path="npx",
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_manager(self, test_config):
         """Create database manager."""
         manager = DatabaseManager(test_config.database_path)
@@ -300,7 +301,7 @@ class TestCriticalPath_SessionPersistence:
         yield manager
         await manager.close()
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def session_manager(self, db_manager):
         """Create session manager."""
         return SessionManager(db_manager)
@@ -519,7 +520,7 @@ class TestCriticalPath_ErrorRecovery:
             sequential_mcp_path="npx",
         )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_manager(self, test_config):
         """Create database manager."""
         manager = DatabaseManager(test_config.database_path)
@@ -527,7 +528,7 @@ class TestCriticalPath_ErrorRecovery:
         yield manager
         await manager.close()
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def session_manager(self, db_manager):
         """Create session manager."""
         return SessionManager(db_manager)

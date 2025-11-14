@@ -47,6 +47,7 @@ class ArisConfig(BaseSettings):
     default_budget_standard: float = 0.50
     default_budget_deep: float = 2.00
     monthly_budget_limit: float = 50.00
+    budget_limit: Optional[float] = None  # Per-session budget limit
 
     # Research parameters
     max_hops: int = 5

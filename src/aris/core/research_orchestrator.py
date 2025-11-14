@@ -11,7 +11,7 @@ Integrates:
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from aris.core.progress_tracker import ProgressEventType, ProgressTracker
@@ -26,7 +26,9 @@ from aris.models.research import (
     ResearchSession,
 )
 from aris.storage.database import DatabaseManager
-from aris.storage.document_store import DocumentStore
+
+if TYPE_CHECKING:
+    from aris.storage.document_store import DocumentStore
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +71,10 @@ class ResearchOrchestrator:
         Args:
             config: ARIS configuration
         """
+        from aris.core.deduplication_gate import DeduplicationGate
         from aris.core.document_finder import DocumentFinder
         from aris.mcp.serena_client import SerenaClient
+        from aris.storage import DocumentStore
 
         self.config = config
         self.db = DatabaseManager(Path(config.database_path))
@@ -79,6 +83,10 @@ class ResearchOrchestrator:
         self.reasoning_engine = ReasoningEngine(config)
         self.progress_tracker = ProgressTracker()
         self.serena_client = SerenaClient()
+        self.deduplication_gate = DeduplicationGate(
+            db=self.db,
+            research_dir=Path(config.research_dir)
+        )
 
         logger.info("Research orchestrator initialized")
 

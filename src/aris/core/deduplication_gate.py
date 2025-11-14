@@ -12,6 +12,7 @@ from typing import Optional
 
 from aris.models.document import Document, DocumentMetadata
 from aris.storage.database import DatabaseManager
+from aris.storage.vector_store import VectorStore, VectorStoreError
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ class DeduplicationGate:
         research_dir: Path,
         similarity_threshold: float = 0.85,
         merge_threshold: float = 0.70,
+        vector_store: Optional[VectorStore] = None,
     ):
         """Initialize deduplication gate.
 
@@ -124,6 +126,7 @@ class DeduplicationGate:
             research_dir: Research directory path
             similarity_threshold: Threshold for UPDATE decision (0.85 default)
             merge_threshold: Threshold for MERGE consideration (0.70 default)
+            vector_store: Optional VectorStore for semantic similarity search
 
         Raises:
             ValueError: If thresholds are invalid
@@ -146,6 +149,7 @@ class DeduplicationGate:
         self.research_dir = research_dir
         self.similarity_threshold = similarity_threshold
         self.merge_threshold = merge_threshold
+        self.vector_store = vector_store
 
     async def check_before_write(
         self,
@@ -261,10 +265,8 @@ class DeduplicationGate:
     ) -> list[SimilarityMatch]:
         """Find similar documents based on content and topics.
 
-        Uses a multi-criteria approach:
-        1. Topic overlap (exact and partial matches)
-        2. Content similarity (word frequency, key phrases)
-        3. Metadata matching
+        Uses semantic similarity via VectorStore when available, otherwise
+        falls back to database query with word-frequency matching.
 
         Args:
             content: Content to compare
@@ -274,6 +276,82 @@ class DeduplicationGate:
         Returns:
             List of SimilarityMatch objects sorted by score descending
         """
+        # Use vector store for semantic similarity if available
+        if self.vector_store:
+            try:
+                # Use first 1000 chars for embedding (balance detail vs performance)
+                query_text = content[:1000]
+
+                # Get vector matches with threshold 0.0 to retrieve all, filter later
+                vector_matches = self.vector_store.search_similar(
+                    query=query_text,
+                    threshold=0.0,
+                    limit=10,
+                )
+
+                if not vector_matches:
+                    logger.debug("Vector store search returned no matches")
+                    return []
+
+                similar_matches = []
+
+                for doc_id, vector_similarity, metadata in vector_matches:
+                    # Load document from filesystem
+                    doc_path = Path(metadata.get("file_path", ""))
+                    if not doc_path.exists():
+                        logger.debug(f"Document file not found: {doc_path}")
+                        continue
+
+                    try:
+                        with open(doc_path, "r", encoding="utf-8") as f:
+                            doc_content = f.read()
+
+                        # Load document to access full metadata
+                        existing_doc = self._load_document_from_content(
+                            doc_path, doc_content
+                        )
+
+                        # Combine vector similarity with topic/question overlap for final score
+                        topic_score = self._calculate_topic_overlap(
+                            topics, existing_doc.metadata.topics
+                        )
+                        question_score = self._calculate_question_overlap(
+                            search_context, existing_doc.metadata.questions_answered
+                        )
+
+                        # Weighted combination: 60% vector, 30% topic, 10% question
+                        final_score = (
+                            vector_similarity * 0.6
+                            + topic_score * 0.3
+                            + question_score * 0.1
+                        )
+
+                        if final_score > 0.0:
+                            similar_matches.append(
+                                SimilarityMatch(
+                                    document=existing_doc,
+                                    similarity_score=final_score,
+                                    reason=(
+                                        f"Semantic similarity: {vector_similarity:.2%}, "
+                                        f"Topic overlap: {self._get_topic_overlap(topics, existing_doc.metadata.topics)}"
+                                    ),
+                                )
+                            )
+                    except Exception as e:
+                        logger.debug(f"Error processing document {doc_path}: {e}")
+                        continue
+
+                # Sort by similarity score (descending)
+                similar_matches.sort(key=lambda m: m.similarity_score, reverse=True)
+                return similar_matches
+
+            except VectorStoreError as e:
+                logger.warning(
+                    f"Vector store search failed, falling back to database: {e}"
+                )
+                # Fall through to database fallback below
+
+        # Fallback: Database query with word-frequency matching
         try:
             # Get all existing documents from database
             with self.db.session_scope() as session:

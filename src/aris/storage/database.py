@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Generator, Optional
 import logging
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -80,6 +80,14 @@ class DatabaseManager:
         )
 
         logger.info(f"Database manager initialized: {self.database_path}")
+
+    async def initialize(self) -> None:
+        """Initialize database and create tables.
+
+        This is a convenience method that wraps create_tables() for
+        backward compatibility with tests.
+        """
+        self.create_all_tables()
 
     def create_all_tables(self) -> None:
         """Create all database tables."""
@@ -160,7 +168,7 @@ class DatabaseManager:
         with self.session_scope() as session:
             for table in Base.metadata.sorted_tables:
                 count = session.execute(
-                    f"SELECT COUNT(*) FROM {table.name}"
+                    text(f"SELECT COUNT(*) FROM {table.name}")
                 ).scalar()
                 stats[table.name] = count
         return stats

@@ -44,6 +44,7 @@ class CostBreakdown:
     llm_cost: float = 0.0
     total_cost: float = 0.0
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    budget_limit: Optional[float] = None
 
     def __post_init__(self):
         """Ensure total is accurate."""
@@ -250,18 +251,22 @@ class CostManager:
         self,
         session_id: str,
         operation_cost: float,
-        budget_limit: float,
+        budget_limit: Optional[float],
     ) -> bool:
         """Check if operation can be performed within budget.
 
         Args:
             session_id: Research session ID
             operation_cost: Estimated cost of operation
-            budget_limit: Budget limit in dollars
+            budget_limit: Budget limit in dollars (None = no limit)
 
         Returns:
             True if operation fits within budget, False otherwise
         """
+        # No budget limit set - allow operation
+        if budget_limit is None:
+            return True
+
         session = await self.session_manager.get_session(session_id)
         if not session:
             return True  # No session, allow operation

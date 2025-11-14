@@ -24,6 +24,7 @@ from aris.mcp.reasoning_schemas import (
 from aris.mcp.sequential_client import MCPSession, SequentialClient
 from aris.mcp.serena_client import MemoryEntry, SerenaClient, SessionContext
 from aris.mcp.tavily_client import (
+    BudgetExceededError,
     CostOperation,
     CostTracker,
     TavilyAPIError,
@@ -61,6 +62,7 @@ __all__ = [
     "TavilyAPIError",
     "TavilyAuthenticationError",
     "TavilyRateLimitError",
+    "BudgetExceededError",
     "CostTracker",
     "CostOperation",
 ]
