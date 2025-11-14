@@ -30,8 +30,11 @@ def mock_reasoning_engine():
     engine.execute_research_hop = AsyncMock()
     engine.sequential = MagicMock()
     engine.sequential.synthesize_findings = AsyncMock()
-    engine.__aenter__ = AsyncMock(return_value=engine)
-    engine.__aexit__ = AsyncMock()
+
+    # Fix: Use side_effect for proper async context manager behavior
+    engine.__aenter__ = AsyncMock(side_effect=lambda: engine)
+    engine.__aexit__ = AsyncMock(side_effect=lambda *args: None)
+
     return engine
 
 
@@ -48,7 +51,10 @@ def orchestrator(mock_config, mock_reasoning_engine, mock_document_store):
     """Create ResearchOrchestrator with mocked dependencies."""
     with patch("aris.core.research_orchestrator.ReasoningEngine", return_value=mock_reasoning_engine), \
          patch("aris.storage.DocumentStore", return_value=mock_document_store), \
-         patch("aris.core.research_orchestrator.DatabaseManager"):
+         patch("aris.core.research_orchestrator.DatabaseManager"), \
+         patch("aris.core.document_finder.DocumentFinder"), \
+         patch("aris.core.deduplication_gate.DeduplicationGate"), \
+         patch("aris.mcp.serena_client.SerenaClient"):
         return ResearchOrchestrator(mock_config)
 
 
@@ -400,6 +406,7 @@ class TestDocumentFormatting:
 class TestAsyncContextManager:
     """Test async context manager support."""
 
+    @pytest.mark.timeout(5)
     @pytest.mark.asyncio
     async def test_async_context_manager(self, orchestrator, mock_reasoning_engine):
         """Test orchestrator works as async context manager."""

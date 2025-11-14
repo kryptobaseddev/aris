@@ -30,7 +30,7 @@ def mock_config():
 @pytest.fixture
 def mock_config_manager(mock_config):
     """Create mock configuration manager."""
-    with patch('aris.cli.init_command.ConfigManager') as mock:
+    with patch('aris.core.config.ConfigManager') as mock:
         instance = Mock()
         instance.get_config.return_value = mock_config
         instance.load.return_value = mock_config
@@ -68,8 +68,8 @@ class TestInitCommand:
     
     def test_init_basic(self, runner, mock_config_manager):
         """Test basic project initialization."""
-        with patch('aris.cli.init_command.DatabaseManager') as mock_db, \
-             patch('aris.cli.init_command.GitManager') as mock_git:
+        with patch('aris.storage.database.DatabaseManager') as mock_db, \
+             patch('aris.storage.git_manager.GitManager') as mock_git:
             
             mock_db_instance = Mock()
             mock_db.return_value = mock_db_instance
@@ -82,8 +82,8 @@ class TestInitCommand:
     
     def test_init_with_profile(self, runner, mock_config_manager):
         """Test init with specific profile."""
-        with patch('aris.cli.init_command.DatabaseManager'), \
-             patch('aris.cli.init_command.GitManager'):
+        with patch('aris.storage.database.DatabaseManager'), \
+             patch('aris.storage.git_manager.GitManager'):
             
             result = runner.invoke(cli, [
                 "init",
@@ -101,8 +101,8 @@ class TestInitCommand:
     
     def test_init_force(self, runner, mock_config_manager):
         """Test init with --force flag."""
-        with patch('aris.cli.init_command.DatabaseManager'), \
-             patch('aris.cli.init_command.GitManager'):
+        with patch('aris.storage.database.DatabaseManager'), \
+             patch('aris.storage.git_manager.GitManager'):
             
             result = runner.invoke(cli, [
                 "init",
@@ -118,7 +118,7 @@ class TestStatusCommand:
     
     def test_status_basic(self, runner, mock_config_manager):
         """Test basic status display."""
-        with patch('aris.cli.status_command.DatabaseManager') as mock_db:
+        with patch('aris.storage.database.DatabaseManager') as mock_db:
             mock_db_instance = Mock()
             mock_db_instance.is_initialized.return_value = True
             mock_db_instance.get_document_count.return_value = 5
@@ -132,7 +132,7 @@ class TestStatusCommand:
     
     def test_status_json(self, runner, mock_config_manager):
         """Test status with JSON output."""
-        with patch('aris.cli.status_command.DatabaseManager') as mock_db:
+        with patch('aris.storage.database.DatabaseManager') as mock_db:
             mock_db_instance = Mock()
             mock_db_instance.is_initialized.return_value = True
             mock_db_instance.get_document_count.return_value = 5
@@ -158,8 +158,8 @@ class TestShowCommand:
         # Create a temporary test document
         test_file = tmp_path / "test.md"
         test_file.write_text("# Test Document\n\nContent here.")
-        
-        with patch('aris.cli.show_command.DocumentStore') as mock_store:
+
+        with patch('aris.storage.document_store.DocumentStore') as mock_store:
             mock_doc = Mock()
             mock_doc.metadata = Mock(
                 title="Test Document",
@@ -210,7 +210,7 @@ class TestDBCommands:
     
     def test_db_status(self, runner, mock_config_manager):
         """Test db status command."""
-        with patch('aris.cli.db_commands.DatabaseManager') as mock_db:
+        with patch('aris.storage.database.DatabaseManager') as mock_db:
             mock_db_instance = Mock()
             mock_db_instance.is_initialized.return_value = True
             mock_db_instance.get_document_count.return_value = 10
@@ -228,7 +228,7 @@ class TestGitCommands:
     
     def test_git_status(self, runner, mock_config_manager):
         """Test git status command."""
-        with patch('aris.cli.git_commands.GitManager'):
+        with patch('aris.storage.git_manager.GitManager'):
             result = runner.invoke(cli, ["git", "status"])
             
             assert result.exit_code == 0
