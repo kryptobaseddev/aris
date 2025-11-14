@@ -285,9 +285,9 @@ class TestHopManagement:
 
         # Verify totals
         updated_session = session_manager.get_session(session.id)
-        assert updated_session.total_cost == 0.30
+        assert updated_session.total_cost == pytest.approx(0.30)
         assert updated_session.current_hop == 3
-        assert updated_session.final_confidence == 0.8
+        assert updated_session.final_confidence == pytest.approx(0.8)
 
     def test_add_hop_invalid_session(self, session_manager: SessionManager):
         """Test adding hop to non-existent session raises error."""

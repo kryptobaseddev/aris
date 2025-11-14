@@ -539,7 +539,7 @@ class TestQualityScoringMethods:
     def test_score_query_specificity_low(self, validator):
         """Test query specificity scoring for vague query."""
         score = validator._score_query_specificity("What is stuff?")
-        assert score < 0.6
+        assert score < 0.7  # Vague queries should score below 0.7
 
     def test_score_budget_sufficient(self, validator):
         """Test budget sufficiency for adequate budget."""

@@ -140,8 +140,12 @@ class Synthesis(BaseModel):
 
     @property
     def needs_more_research(self) -> bool:
-        """Determine if more research is needed."""
-        return not self.has_high_confidence or self.has_gaps
+        """Determine if more research is needed.
+
+        Returns True only if confidence is low AND there are gaps.
+        High confidence overrides gaps (we're confident despite gaps).
+        """
+        return not self.has_high_confidence and self.has_gaps
 
     def __str__(self) -> str:
         """String representation."""

@@ -118,10 +118,10 @@ class TestFindSimilarDocuments:
             db_doc.file_path = str(Path("./research/test/doc.md"))
             mock_repo.get_by_id.return_value = db_doc
 
-            # Mock document store load
+            # Mock document store load and file existence
             with patch.object(
                 document_finder.document_store, "load_document"
-            ) as mock_load:
+            ) as mock_load, patch("pathlib.Path.exists", return_value=True):
                 sample_doc = Document(
                     metadata=DocumentMetadata(
                         title="Test",
@@ -391,13 +391,29 @@ class TestRankByRelevance:
         """Test recency factor boosts recent documents."""
         now = datetime.utcnow()
 
-        # Recent document
-        recent_doc = sample_document
-        recent_doc.metadata.updated_at = now
+        # Recent document - create new instance
+        recent_doc = Document(
+            metadata=DocumentMetadata(
+                title="Recent Document",
+                purpose="test",
+                confidence=0.85,
+                updated_at=now,
+            ),
+            content="Recent content",
+            file_path=Path("./research/test/recent.md"),
+        )
 
-        # Old document
-        old_doc = sample_document
-        old_doc.metadata.updated_at = now - timedelta(days=60)
+        # Old document - create new instance
+        old_doc = Document(
+            metadata=DocumentMetadata(
+                title="Old Document",
+                purpose="test",
+                confidence=0.85,
+                updated_at=now - timedelta(days=60),
+            ),
+            content="Old content",
+            file_path=Path("./research/test/old.md"),
+        )
 
         documents = [
             (old_doc, 0.90),
@@ -474,14 +490,15 @@ class TestRankByRelevance:
         )
 
         documents = [
-            (short_doc, 0.90),
-            (long_doc, 0.90),
+            (short_doc, 0.85),  # Slightly lower similarity
+            (long_doc, 0.85),   # Same similarity
         ]
 
         ranked = document_finder.rank_by_relevance(documents, "test")
 
-        # Long document should rank higher
+        # Long document should rank higher due to length boost
         assert len(ranked[0][0].content) > len(ranked[1][0].content)
+        assert len(ranked[0][0].content) == 1000  # Verify it's the long doc
 
 
 class TestGetRelatedDocuments:

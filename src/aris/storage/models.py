@@ -229,6 +229,16 @@ class ResearchSession(Base):
         Index("idx_session_started", "started_at"),
     )
 
+    @property
+    def query(self) -> str:
+        """Backward compatibility alias for query_text."""
+        return self.query_text
+
+    @query.setter
+    def query(self, value: str) -> None:
+        """Backward compatibility setter for query_text."""
+        self.query_text = value
+
     def __repr__(self) -> str:
         return f"<ResearchSession(id={self.id}, query={self.query_text[:50]}, status={self.status})>"
 

@@ -174,7 +174,7 @@ class ResearchOrchestrator:
                 document_path=str(document.file_path),
                 operation=operation,
                 confidence=context.overall_confidence,
-                sources_analyzed=len(context.all_sources),
+                sources_analyzed=context.total_evidence,
                 hops_executed=len(session.hops),
                 total_cost=session.total_cost,
                 within_budget=session.within_budget,
@@ -230,7 +230,7 @@ class ResearchOrchestrator:
         """
         from aris.mcp.reasoning_schemas import ReasoningContext
 
-        context = ReasoningContext()
+        context = ReasoningContext(query=session.query.query_text)
 
         for hop_num in range(1, max_hops + 1):
             self.progress_tracker.hop_progress(
@@ -251,12 +251,11 @@ class ResearchOrchestrator:
                 hop_number=hop_num,
                 started_at=hop_started,
                 completed_at=hop_completed,
-                search_queries=[],  # Will be populated from hop_result
-                sources_found=len(hop_result.evidence),
+                search_query=f"Hop {hop_num} search",  # Placeholder
+                sources_found_count=len(hop_result.evidence),
                 confidence_before=context.overall_confidence,
                 confidence_after=hop_result.synthesis.confidence,
-                confidence_gain=hop_result.synthesis.confidence
-                - context.overall_confidence,
+                cost=0.0,  # Initialize cost
             )
 
             # Add hop to session
@@ -268,7 +267,7 @@ class ResearchOrchestrator:
 
             logger.info(
                 f"Hop {hop_num} complete: confidence={context.overall_confidence:.2f}, "
-                f"sources={len(hop_result.evidence)}, cost=${db_hop.total_cost:.2f}"
+                f"sources={len(hop_result.evidence)}, cost=${db_hop.cost:.2f}"
             )
 
             # Check budget constraints
@@ -427,7 +426,7 @@ class ResearchOrchestrator:
                 purpose=target_doc.metadata.purpose,
                 topics=topics,
                 confidence=context.overall_confidence,
-                source_count=len(context.all_sources),
+                source_count=context.total_evidence,
             )
 
             # Use intelligent merge via document store
@@ -471,7 +470,7 @@ class ResearchOrchestrator:
         lines.append(
             f"**Confidence Score**: {context.overall_confidence:.1%}"
         )
-        lines.append(f"**Sources Analyzed**: {len(context.all_sources)}")
+        lines.append(f"**Sources Analyzed**: {context.total_evidence}")
         lines.append(f"**Research Hops**: {len(session.hops)}")
         lines.append(f"**Cost**: ${session.total_cost:.2f}")
         lines.append("")
@@ -488,7 +487,7 @@ class ResearchOrchestrator:
         lines.append("## Research Process")
         lines.append("")
 
-        for i, hop_result in enumerate(context.hop_results, 1):
+        for i, hop_result in enumerate(context.hops, 1):
             lines.append(f"### Hop {i}")
             lines.append("")
 
@@ -519,20 +518,27 @@ class ResearchOrchestrator:
                     lines.append(f"- {finding}")
                 lines.append("")
 
-        # Sources
-        if context.all_sources:
+        # Sources (from cumulative evidence)
+        if context.cumulative_evidence:
             lines.append("## Sources")
             lines.append("")
-            for source in context.all_sources:
+            # Extract unique sources from evidence
+            sources = set()
+            for evidence in context.cumulative_evidence:
+                if isinstance(evidence, dict) and 'url' in evidence:
+                    sources.add(evidence['url'])
+                elif isinstance(evidence, str):
+                    sources.add(evidence)
+            for source in sorted(sources):
                 lines.append(f"- {source}")
             lines.append("")
 
         # Gaps and recommendations
         if context.final_synthesis:
-            if context.final_synthesis.remaining_gaps:
+            if context.final_synthesis.gaps_remaining:
                 lines.append("## Remaining Questions")
                 lines.append("")
-                for gap in context.final_synthesis.remaining_gaps:
+                for gap in context.final_synthesis.gaps_remaining:
                     lines.append(f"- {gap}")
                 lines.append("")
 

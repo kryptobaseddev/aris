@@ -183,12 +183,28 @@ class ProgressTracker:
             total=max_hops
         )
 
-    def record_hop(self, hop_data: dict[str, Any]) -> None:
+    def record_hop(
+        self,
+        hop_data: Optional[dict[str, Any]] = None,
+        **kwargs
+    ) -> None:
         """Record research hop data for tracking and analysis.
 
         Args:
             hop_data: Dictionary containing hop information (hop_number, query, results, etc.)
+            **kwargs: Alternative to hop_data - individual hop parameters
+
+        Note:
+            Can be called either as record_hop(hop_data={...}) or
+            record_hop(hop_number=1, query="...", results_count=10)
         """
+        # Support both dict-based and keyword-based calling styles
+        if hop_data is None:
+            hop_data = kwargs
+        elif kwargs:
+            # Merge kwargs into hop_data if both provided
+            hop_data = {**hop_data, **kwargs}
+
         self.hops.append(hop_data)
         logger.debug(f"Recorded hop data: hop_number={hop_data.get('hop_number', 'unknown')}")
 

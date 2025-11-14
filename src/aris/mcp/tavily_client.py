@@ -233,6 +233,7 @@ class TavilyClient:
         """Async context manager exit."""
         if self._client:
             await self._client.aclose()
+            self._client = None
 
     def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""

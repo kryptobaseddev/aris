@@ -445,13 +445,20 @@ Format as JSON with these fields.
             return 0.0
 
         # Weight by evidence strength
-        weighted_confidences = []
+        total_weighted = 0.0
+        total_weight = 0.0
         for result in results:
             evidence_count = len(result.supporting_evidence)
             weight = min(evidence_count / 3.0, 1.0)  # Cap at 3 sources
-            weighted_confidences.append(result.confidence_posterior * weight)
+            total_weighted += result.confidence_posterior * weight
+            total_weight += weight
 
-        return sum(weighted_confidences) / len(weighted_confidences)
+        # Avoid division by zero if all weights are 0
+        if total_weight == 0.0:
+            # Fall back to simple average if no evidence
+            return sum(r.confidence_posterior for r in results) / len(results)
+
+        return total_weighted / total_weight
 
     async def close(self) -> None:
         """Close Sequential MCP session."""

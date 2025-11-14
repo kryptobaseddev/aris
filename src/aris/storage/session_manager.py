@@ -3,13 +3,15 @@
 import json
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from uuid import UUID
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, and_
 
 from aris.storage.models import ResearchSession, ResearchHop, Topic
+from aris.storage.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -59,22 +61,54 @@ class SessionManager:
             stats = manager.get_session_statistics(research_session.id)
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Union[Session, str, Path, "DatabaseManager"]):
         """Initialize session manager.
 
         Args:
-            db_session: SQLAlchemy database session
+            db_session: SQLAlchemy Session, database path string, Path, or DatabaseManager
+
+        Note:
+            Supports backward compatibility with string paths like ":memory:"
         """
-        self.session = db_session
+        # Handle different input types for backward compatibility
+        if isinstance(db_session, str):
+            # Legacy API: string database path (e.g., ":memory:")
+            if db_session == ":memory:":
+                db_path = Path(":memory:")
+            else:
+                db_path = Path(db_session)
+            db_manager = DatabaseManager(db_path)
+            db_manager.create_all_tables()
+            self.session = db_manager.get_session()
+            self._owns_session = True
+        elif isinstance(db_session, Path):
+            # Path-based initialization
+            db_manager = DatabaseManager(db_session)
+            db_manager.create_all_tables()
+            self.session = db_manager.get_session()
+            self._owns_session = True
+        elif isinstance(db_session, DatabaseManager):
+            # DatabaseManager provided
+            self.session = db_session.get_session()
+            self._owns_session = True
+        else:
+            # Standard Session object
+            self.session = db_session
+            self._owns_session = False
+
         logger.info("SessionManager initialized")
 
     def create_session(
         self,
-        topic_id: str,
-        query_text: str,
+        topic_id: Optional[str] = None,
+        query_text: Optional[str] = None,
         query_depth: str = "standard",
         budget_target: float = 0.50,
-        max_hops: int = 5
+        max_hops: int = 5,
+        # Legacy API support
+        query: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> ResearchSession:
         """Create a new research session.
 
@@ -84,17 +118,47 @@ class SessionManager:
             query_depth: Depth level (quick|standard|deep|exhaustive)
             budget_target: Target cost budget in dollars
             max_hops: Maximum research hops allowed
+            query: (Legacy) Alternative to query_text
+            metadata: (Legacy) Additional session metadata
 
         Returns:
             Created ResearchSession instance
 
         Raises:
             ValueError: If topic doesn't exist
+
+        Note:
+            Supports both new API (topic_id, query_text) and legacy API (query, metadata)
         """
-        # Verify topic exists
-        topic = self.session.get(Topic, topic_id)
-        if not topic:
-            raise ValueError(f"Topic '{topic_id}' not found")
+        # Handle legacy API parameters
+        if query is not None and query_text is None:
+            query_text = query
+
+        if query_text is None:
+            raise ValueError("query_text or query parameter is required")
+
+        # Create or get default topic if not provided
+        if topic_id is None:
+            # Try to get or create a default topic
+            default_topic = self.session.execute(
+                select(Topic).where(Topic.name == "General Research")
+            ).scalar_one_or_none()
+
+            if not default_topic:
+                default_topic = Topic(
+                    id=str(uuid4()),
+                    name="General Research",
+                    description="Default topic for research sessions"
+                )
+                self.session.add(default_topic)
+                self.session.flush()
+
+            topic_id = default_topic.id
+        else:
+            # Verify topic exists
+            topic = self.session.get(Topic, topic_id)
+            if not topic:
+                raise ValueError(f"Topic '{topic_id}' not found")
 
         research_session = ResearchSession(
             topic_id=topic_id,
@@ -102,7 +166,7 @@ class SessionManager:
             query_depth=query_depth,
             budget_target=budget_target,
             max_hops=max_hops,
-            status="planning",
+            status="active" if metadata else "planning",  # Legacy API uses "active"
             current_hop=1,
             total_cost=0.0,
             final_confidence=0.0

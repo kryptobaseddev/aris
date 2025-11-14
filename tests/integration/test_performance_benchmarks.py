@@ -47,9 +47,9 @@ async def benchmark_db(benchmark_config):
 
 
 @pytest_asyncio.fixture
-async def benchmark_doc_store(benchmark_db):
+async def benchmark_doc_store(benchmark_config, benchmark_db):
     """Create document store for benchmarks."""
-    return DocumentStore(benchmark_db)
+    return DocumentStore(benchmark_config)
 
 
 @pytest_asyncio.fixture

@@ -345,7 +345,7 @@ class TestReasoningSchemas:
             conclusion="Test"
         )
 
-        assert result.confidence_change == 0.3
+        assert result.confidence_change == pytest.approx(0.3)
 
     def test_hypothesis_result_evidence_ratio(self):
         """Test evidence ratio calculation."""

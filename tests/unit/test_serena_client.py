@@ -235,7 +235,7 @@ class TestSerenaClient:
         """Test listing all sessions."""
         for i in range(3):
             context = SessionContext(
-                session_id=f"session_{i}",
+                session_id=str(i),  # Use simple session IDs
                 query="Test query",
                 created_at=datetime.utcnow(),
                 last_updated=datetime.utcnow(),
@@ -249,7 +249,10 @@ class TestSerenaClient:
 
         sessions = client.list_sessions()
         assert len(sessions) == 3
-        assert "session_0" in sessions
+        # list_sessions returns IDs without "session_" prefix
+        assert "0" in sessions
+        assert "1" in sessions
+        assert "2" in sessions
 
     def test_save_document_index(self, client: SerenaClient) -> None:
         """Test saving document index."""
@@ -333,7 +336,7 @@ class TestSerenaClient:
         """Test clearing all sessions."""
         for i in range(3):
             context = SessionContext(
-                session_id=f"session_{i}",
+                session_id=str(i),  # Use simple IDs, not "session_0" which gets double-prefixed
                 query="Test query",
                 created_at=datetime.utcnow(),
                 last_updated=datetime.utcnow(),

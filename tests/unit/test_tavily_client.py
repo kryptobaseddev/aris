@@ -180,37 +180,34 @@ class TestTavilyClient:
     @pytest.mark.asyncio
     async def test_circuit_breaker_opens(self, client):
         """Test circuit breaker opens after failures."""
-        with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
-            mock_request.side_effect = TavilyAPIError("API error")
+        # Directly record failures on the circuit breaker since _make_request
+        # handles the recording, but when mocked it bypasses that logic
+        for _ in range(5):
+            client.circuit_breaker.record_failure()
 
-            # Trigger 5 failures to open circuit
-            for _ in range(5):
-                try:
-                    await client.search("test")
-                except TavilyAPIError:
-                    pass
+        # Circuit should now be OPEN
+        status = client.get_circuit_status()
+        assert status["state"] == "open"
 
-            # Circuit should now be OPEN
-            status = client.get_circuit_status()
-            assert status["state"] == "open"
-
-            # Next request should fail immediately
-            with pytest.raises(CircuitBreakerOpen):
-                await client.search("test")
+        # Next request should fail immediately due to open circuit
+        with pytest.raises(CircuitBreakerOpen):
+            await client.search("test")
 
     @pytest.mark.asyncio
     async def test_retry_logic(self, client):
         """Test retry logic with exponential backoff."""
-        with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http_client = AsyncMock()
             # Fail twice, succeed third time
-            mock_request.side_effect = [
+            mock_http_client.post.side_effect = [
                 httpx.TimeoutException("Timeout"),
                 httpx.TimeoutException("Timeout"),
-                {"results": []},
+                AsyncMock(json=lambda: {"results": []}),
             ]
+            mock_get_client.return_value = mock_http_client
 
             results = await client.search("test")
-            assert mock_request.call_count == 3
+            assert mock_http_client.post.call_count == 3
 
     @pytest.mark.asyncio
     async def test_authentication_error(self, client):

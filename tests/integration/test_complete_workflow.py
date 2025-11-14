@@ -64,13 +64,13 @@ async def database_manager(test_config):
     manager = DatabaseManager(test_config.database_path)
     await manager.initialize()
     yield manager
-    await manager.close()
+    manager.close()
 
 
 @pytest_asyncio.fixture
-async def document_store(database_manager):
-    """Create document store with database manager."""
-    store = DocumentStore(database_manager)
+async def document_store(test_config, database_manager):
+    """Create document store with test configuration."""
+    store = DocumentStore(test_config)
     yield store
 
 
@@ -384,7 +384,7 @@ class TestSessionPersistence:
     ):
         """Test session creation and storage in database."""
         # Create a new session
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Test research query",
             metadata={"source": "test"},
         )
@@ -403,14 +403,14 @@ class TestSessionPersistence:
     ):
         """Test resuming an existing session."""
         # Create initial session
-        session1 = await session_manager.create_session(
+        session1 = session_manager.create_session(
             query="Resumable research",
             metadata={"resumable": True},
         )
         session_id = session1.id
 
         # Retrieve and resume session
-        session2 = await session_manager.get_session(session_id)
+        session2 = session_manager.get_session(session_id)
 
         assert session2 is not None
         assert session2.id == session_id
@@ -424,20 +424,20 @@ class TestSessionPersistence:
         session_manager,
     ):
         """Test updating session state during execution."""
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="State tracking",
             metadata={},
         )
 
         # Update session state
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="in_progress",
             metadata={"hop": 1, "confidence": 0.5},
         )
 
         # Verify update
-        updated = await session_manager.get_session(session.id)
+        updated = session_manager.get_session(session.id)
         assert updated.status == "in_progress"
 
     @pytest.mark.asyncio
@@ -448,19 +448,19 @@ class TestSessionPersistence:
         session_manager,
     ):
         """Test that multiple sessions are properly isolated."""
-        session1 = await session_manager.create_session(
+        session1 = session_manager.create_session(
             query="Session 1",
             metadata={"id": 1},
         )
-        session2 = await session_manager.create_session(
+        session2 = session_manager.create_session(
             query="Session 2",
             metadata={"id": 2},
         )
 
         assert session1.id != session2.id
 
-        retrieved1 = await session_manager.get_session(session1.id)
-        retrieved2 = await session_manager.get_session(session2.id)
+        retrieved1 = session_manager.get_session(session1.id)
+        retrieved2 = session_manager.get_session(session2.id)
 
         assert retrieved1.query == "Session 1"
         assert retrieved2.query == "Session 2"
@@ -721,7 +721,7 @@ class TestPerformanceBenchmarks:
         # Create multiple sessions
         sessions = []
         for i in range(5):
-            session = await session_manager.create_session(
+            session = session_manager.create_session(
                 query=f"Query {i}",
                 metadata={"index": i},
             )
@@ -730,7 +730,7 @@ class TestPerformanceBenchmarks:
         # Measure recovery time
         start_time = time.time()
         for session in sessions:
-            recovered = await session_manager.get_session(session.id)
+            recovered = session_manager.get_session(session.id)
             assert recovered is not None
         elapsed = time.time() - start_time
 
@@ -821,20 +821,20 @@ class TestCriticalPaths:
         session_manager = SessionManager(database_manager)
 
         # Create a session
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Recovery test",
             metadata={"test": True},
         )
 
         # Simulate failure recovery
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="failed",
             metadata={"error": "Test error"},
         )
 
         # Verify session state
-        updated = await session_manager.get_session(session.id)
+        updated = session_manager.get_session(session.id)
         assert updated.status == "failed"
 
     @pytest.mark.asyncio

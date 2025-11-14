@@ -45,7 +45,7 @@ class TestCriticalPath_QueryIngestion:
         manager = DatabaseManager(test_config.database_path)
         await manager.initialize()
         yield manager
-        await manager.close()
+        manager.close()
 
     @pytest.mark.asyncio
     async def test_query_acceptance_and_validation(self, test_config, db_manager):
@@ -53,7 +53,7 @@ class TestCriticalPath_QueryIngestion:
         session_manager = SessionManager(db_manager)
 
         query = "What are the latest advances in quantum computing?"
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query=query,
             metadata={"source": "test", "priority": "high"},
         )
@@ -68,7 +68,7 @@ class TestCriticalPath_QueryIngestion:
         """CRITICAL: Verify session is properly initialized with metadata."""
         session_manager = SessionManager(db_manager)
 
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Test query",
             metadata={
                 "timestamp": "2024-01-01",
@@ -79,7 +79,7 @@ class TestCriticalPath_QueryIngestion:
 
         assert session.metadata is not None
         # Metadata should be preserved
-        retrieved = await session_manager.get_session(session.id)
+        retrieved = session_manager.get_session(session.id)
         assert retrieved is not None
 
 
@@ -110,12 +110,12 @@ class TestCriticalPath_Deduplication:
         manager = DatabaseManager(test_config.database_path)
         await manager.initialize()
         yield manager
-        await manager.close()
+        manager.close()
 
     @pytest_asyncio.fixture
-    async def doc_store(self, db_manager):
+    async def doc_store(self, test_config, db_manager):
         """Create document store."""
-        return DocumentStore(db_manager)
+        return DocumentStore(test_config)
 
     @pytest.mark.asyncio
     async def test_duplicate_detection_flow(self, db_manager, doc_store):
@@ -203,12 +203,12 @@ class TestCriticalPath_DocumentStorage:
         manager = DatabaseManager(test_config.database_path)
         await manager.initialize()
         yield manager
-        await manager.close()
+        manager.close()
 
     @pytest_asyncio.fixture
-    async def doc_store(self, db_manager):
+    async def doc_store(self, test_config, db_manager):
         """Create document store."""
-        return DocumentStore(db_manager)
+        return DocumentStore(test_config)
 
     @pytest.mark.asyncio
     async def test_document_save_and_retrieve(self, doc_store):
@@ -299,7 +299,7 @@ class TestCriticalPath_SessionPersistence:
         manager = DatabaseManager(test_config.database_path)
         await manager.initialize()
         yield manager
-        await manager.close()
+        manager.close()
 
     @pytest_asyncio.fixture
     async def session_manager(self, db_manager):
@@ -310,21 +310,21 @@ class TestCriticalPath_SessionPersistence:
     async def test_session_persistence_cycle(self, session_manager):
         """CRITICAL: Verify session can be created, persisted, and resumed."""
         # Create session
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Persistence test query",
             metadata={"test": True},
         )
         session_id = session.id
 
         # Persist state update
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session_id,
             status="in_progress",
             metadata={"hop": 1, "progress": 50},
         )
 
         # Resume session
-        resumed = await session_manager.get_session(session_id)
+        resumed = session_manager.get_session(session_id)
         assert resumed is not None
         assert resumed.id == session_id
         assert resumed.query == "Persistence test query"
@@ -333,29 +333,29 @@ class TestCriticalPath_SessionPersistence:
     @pytest.mark.asyncio
     async def test_session_state_transitions(self, session_manager):
         """CRITICAL: Verify session state transitions are valid."""
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="State transition test",
             metadata={},
         )
 
         # Valid transitions: active → in_progress → completed
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="in_progress",
             metadata={"current_hop": 1},
         )
 
-        session_in_progress = await session_manager.get_session(session.id)
+        session_in_progress = session_manager.get_session(session.id)
         assert session_in_progress.status == "in_progress"
 
         # Complete session
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="completed",
             metadata={"total_hops": 3},
         )
 
-        completed = await session_manager.get_session(session.id)
+        completed = session_manager.get_session(session.id)
         assert completed.status == "completed"
 
 
@@ -526,7 +526,7 @@ class TestCriticalPath_ErrorRecovery:
         manager = DatabaseManager(test_config.database_path)
         await manager.initialize()
         yield manager
-        await manager.close()
+        manager.close()
 
     @pytest_asyncio.fixture
     async def session_manager(self, db_manager):
@@ -536,44 +536,44 @@ class TestCriticalPath_ErrorRecovery:
     @pytest.mark.asyncio
     async def test_error_recording_in_session(self, session_manager):
         """CRITICAL: Verify errors are properly recorded in session."""
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Error recovery test",
             metadata={},
         )
 
         # Record error
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="error",
             metadata={"error": "Test error condition"},
         )
 
-        retrieved = await session_manager.get_session(session.id)
+        retrieved = session_manager.get_session(session.id)
         assert retrieved.status == "error"
 
     @pytest.mark.asyncio
     async def test_session_recovery_after_failure(self, session_manager):
         """CRITICAL: Verify session can recover after failure."""
-        session = await session_manager.create_session(
+        session = session_manager.create_session(
             query="Recovery test",
             metadata={},
         )
 
         # Mark as failed
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="error",
             metadata={"error": "Temporary failure"},
         )
 
         # Recover to in_progress
-        await session_manager.update_session_state(
+        session_manager.update_session_state(
             session.id,
             status="in_progress",
             metadata={"recovery": True},
         )
 
-        recovered = await session_manager.get_session(session.id)
+        recovered = session_manager.get_session(session.id)
         assert recovered.status == "in_progress"
 
 

@@ -129,7 +129,7 @@ class SourceCredibilityTracker:
         tier = self.classify_source(str(source.url))
         credibility_score = self.calculate_credibility_score(tier)
 
-        # Create record
+        # Create record with initial citation count of 1
         record = SourceCredibilityRecord(
             source_id=source_id,
             domain=domain,
@@ -137,6 +137,7 @@ class SourceCredibilityTracker:
             tier=tier,
             credibility_score=credibility_score,
             verification_status="unverified",
+            times_cited=1,  # First citation when tracking new source
         )
 
         self.source_records[source_id] = record
@@ -763,10 +764,13 @@ class QualityValidator:
                 tokens1 = set(finding1_lower.split())
                 tokens2 = set(finding2_lower.split())
 
-                # Check for direct negation pattern
+                # Check for direct negation pattern (bidirectional)
                 is_negated = any(
                     f"not {word}" in finding1_lower or f"never {word}" in finding1_lower
                     for word in tokens2
+                ) or any(
+                    f"not {word}" in finding2_lower or f"never {word}" in finding2_lower
+                    for word in tokens1
                 )
 
                 if is_negated:

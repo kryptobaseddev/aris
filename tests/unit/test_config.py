@@ -24,16 +24,17 @@ class TestSecureKeyManager:
     @pytest.fixture(autouse=True)
     def setup_teardown(self):
         """Setup and teardown for each test."""
-        # Setup
+        # Setup: Aggressively clear keyring state at START
+        try:
+            SecureKeyManager.clear_all_keys()
+        except Exception:
+            pass
+
         yield
+
         # Teardown: Clean up any test keys
         try:
-            manager = SecureKeyManager()
-            for provider in ["tavily", "anthropic", "openai", "google"]:
-                try:
-                    manager.delete_api_key(provider)
-                except Exception:
-                    pass
+            SecureKeyManager.clear_all_keys()
         except Exception:
             pass
 
@@ -154,7 +155,12 @@ class TestConfigManager:
     @pytest.fixture(autouse=True)
     def setup_teardown(self):
         """Setup and teardown for each test."""
-        # Setup: Reset singleton
+        # Setup: Clear keyring first, THEN reset singleton
+        # This ensures ConfigManager creates a new _secrets_manager with mocked keyring
+        try:
+            SecureKeyManager.clear_all_keys()
+        except Exception:
+            pass
         ConfigManager.reset_instance()
 
         yield
@@ -410,8 +416,16 @@ class TestConfigurationIntegration:
     @pytest.fixture(autouse=True)
     def setup_teardown(self):
         """Setup and teardown for each test."""
+        # Setup: Reset singleton and clear keyring state at START
         ConfigManager.reset_instance()
+        try:
+            SecureKeyManager.clear_all_keys()
+        except Exception:
+            pass
+
         yield
+
+        # Teardown: Reset singleton and clean up keys
         ConfigManager.reset_instance()
         try:
             SecureKeyManager.clear_all_keys()

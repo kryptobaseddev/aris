@@ -1,14 +1,33 @@
 """Unit tests for ResearchOrchestrator."""
 
+import sys
 import pytest
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+# Mock chromadb before any imports that depend on it
+chromadb_mock = MagicMock()
+chromadb_mock.config = MagicMock()
+chromadb_mock.config.Settings = MagicMock()
+sys.modules["chromadb"] = chromadb_mock
+sys.modules["chromadb.config"] = chromadb_mock.config
+
 from aris.core.research_orchestrator import ResearchOrchestrator, ResearchOrchestratorError
 from aris.models.config import ArisConfig
 from aris.models.research import ResearchDepth, ResearchQuery, ResearchSession
+
+
+class FormattableMock(MagicMock):
+    """Mock that supports format strings."""
+    def __format__(self, format_spec):
+        """Support format strings by returning the mock's value."""
+        # If we have a real value set, use it
+        if hasattr(self, '_format_value'):
+            return format(self._format_value, format_spec)
+        # Otherwise return a placeholder
+        return f"<mock:{format_spec}>"
 
 
 @pytest.fixture
@@ -114,13 +133,15 @@ class TestResearchOrchestrator:
 
     def test_create_research_session_budgets(self, orchestrator):
         """Test default budgets for different depths."""
-        quick_session = orchestrator._create_research_session("test", "quick", None)
+        query = "test query"  # Must be ≥5 chars for validation
+
+        quick_session = orchestrator._create_research_session(query, "quick", None)
         assert quick_session.budget_target == 0.20
 
-        standard_session = orchestrator._create_research_session("test", "standard", None)
+        standard_session = orchestrator._create_research_session(query, "standard", None)
         assert standard_session.budget_target == 0.50
 
-        deep_session = orchestrator._create_research_session("test", "deep", None)
+        deep_session = orchestrator._create_research_session(query, "deep", None)
         assert deep_session.budget_target == 2.00
 
 
@@ -130,120 +151,138 @@ class TestResearchExecution:
     @pytest.mark.asyncio
     async def test_execute_research_basic(self, orchestrator, mock_reasoning_engine):
         """Test basic research execution."""
-        # Setup mocks
-        mock_plan = MagicMock()
-        mock_plan.hypotheses = [MagicMock(), MagicMock()]
-        mock_reasoning_engine.analyze_query.return_value = mock_plan
+        # Patch _update_session and logger to avoid format issues with mocks
+        with patch.object(orchestrator, '_update_session', return_value=None), \
+             patch('aris.core.research_orchestrator.logger'):
+            # Setup mocks - use real Pydantic models where needed
+            from aris.mcp.reasoning_schemas import HopResult, Synthesis
 
-        mock_hop_result = MagicMock()
-        mock_hop_result.evidence = ["source1", "source2"]
-        mock_hop_result.hypothesis_results = []
-        mock_hop_result.synthesis = MagicMock()
-        mock_hop_result.synthesis.confidence = 0.75
-        mock_hop_result.synthesis.key_findings = ["Finding 1"]
-        mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
+            mock_plan = MagicMock()
+            mock_plan.hypotheses = [MagicMock(), MagicMock()]
+            mock_reasoning_engine.analyze_query.return_value = mock_plan
 
-        mock_synthesis = MagicMock()
-        mock_synthesis.key_findings = ["Final finding"]
-        mock_synthesis.remaining_gaps = []
-        mock_synthesis.recommendations = []
-        mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
+            # Create real HopResult to avoid format string issues
+            mock_synthesis = Synthesis(
+                confidence=0.75,
+                key_findings=["Finding 1"],
+                gaps_remaining=[],
+                recommendations=[]
+            )
+            mock_hop_result = HopResult(
+                hop_number=1,
+                evidence=[{"url": "source1"}, {"url": "source2"}],
+                results=[],
+                synthesis=mock_synthesis
+            )
+            mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
 
-        mock_document = MagicMock()
-        mock_document.file_path = Path("research/test.md")
-        orchestrator.document_store.create_document.return_value = mock_document
+            final_synthesis = Synthesis(
+                confidence=0.75,
+                key_findings=["Final finding"],
+                gaps_remaining=[],
+                recommendations=[]
+            )
+            mock_reasoning_engine.sequential.synthesize_findings.return_value = final_synthesis
 
-        # Execute research
-        result = await orchestrator.execute_research(
-            query="Test query",
-            depth="quick",
-            max_cost=None
-        )
+            mock_document = MagicMock()
+            mock_document.file_path = Path("research/test.md")
+            orchestrator.document_store.create_document.return_value = mock_document
 
-        # Verify result
-        assert result.success is True
-        assert result.query_text == "Test query"
-        assert result.document_path == str(mock_document.file_path)
-        assert result.operation == "created"
-        assert result.hops_executed > 0
+            # Execute research
+            result = await orchestrator.execute_research(
+                query="Test query",
+                depth="quick",
+                max_cost=None
+            )
 
-        # Verify calls
-        mock_reasoning_engine.analyze_query.assert_called_once()
-        mock_reasoning_engine.execute_research_hop.assert_called()
+            # Verify result
+            assert result.success is True
+            assert result.query_text == "Test query"
+            assert result.document_path == str(mock_document.file_path)
+            assert result.operation == "created"
+            assert result.hops_executed > 0
+
+            # Verify calls
+            mock_reasoning_engine.analyze_query.assert_called_once()
+            mock_reasoning_engine.execute_research_hop.assert_called()
 
     @pytest.mark.asyncio
     async def test_execute_research_early_stopping(self, orchestrator, mock_reasoning_engine):
         """Test early stopping at high confidence."""
-        # Setup for high confidence on first hop
-        mock_plan = MagicMock()
-        mock_plan.hypotheses = [MagicMock()]
-        mock_reasoning_engine.analyze_query.return_value = mock_plan
+        with patch.object(orchestrator, '_update_session', return_value=None), \
+             patch('aris.core.research_orchestrator.logger'):
+            # Setup for high confidence on first hop
+            mock_plan = MagicMock()
+            mock_plan.hypotheses = [MagicMock()]
+            mock_reasoning_engine.analyze_query.return_value = mock_plan
 
-        mock_hop_result = MagicMock()
-        mock_hop_result.evidence = ["source1"]
-        mock_hop_result.hypothesis_results = []
-        mock_hop_result.synthesis = MagicMock()
-        mock_hop_result.synthesis.confidence = 0.80  # Above target
-        mock_hop_result.synthesis.key_findings = ["Finding 1"]
-        mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
+            mock_hop_result = MagicMock()
+            mock_hop_result.evidence = ["source1"]
+            mock_hop_result.hypothesis_results = []
+            mock_hop_result.synthesis = MagicMock()
+            mock_hop_result.synthesis.confidence = 0.80  # Above target
+            mock_hop_result.synthesis.key_findings = ["Finding 1"]
+            mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
 
-        mock_synthesis = MagicMock()
-        mock_synthesis.key_findings = []
-        mock_synthesis.remaining_gaps = []
-        mock_synthesis.recommendations = []
-        mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
+            mock_synthesis = MagicMock()
+            mock_synthesis.key_findings = []
+            mock_synthesis.remaining_gaps = []
+            mock_synthesis.recommendations = []
+            mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
 
-        mock_document = MagicMock()
-        mock_document.file_path = Path("research/test.md")
-        orchestrator.document_store.create_document.return_value = mock_document
+            mock_document = MagicMock()
+            mock_document.file_path = Path("research/test.md")
+            orchestrator.document_store.create_document.return_value = mock_document
 
-        # Execute with max_hops=5 but should stop at 1
-        result = await orchestrator.execute_research(
-            query="Test query",
-            depth="deep",  # 5 hops
-            max_cost=None
-        )
+            # Execute with max_hops=5 but should stop at 1
+            result = await orchestrator.execute_research(
+                query="Test query",
+                depth="deep",  # 5 hops
+                max_cost=None
+            )
 
-        # Should stop after 1 hop due to confidence
-        assert result.hops_executed == 1
-        assert result.confidence >= 0.70
+            # Should stop after 1 hop due to confidence
+            assert result.hops_executed == 1
+            assert result.confidence >= 0.70
 
     @pytest.mark.asyncio
     async def test_execute_research_budget_limit(self, orchestrator, mock_reasoning_engine):
         """Test research stops at budget limit."""
-        # Setup high-cost hops
-        mock_plan = MagicMock()
-        mock_plan.hypotheses = [MagicMock()]
-        mock_reasoning_engine.analyze_query.return_value = mock_plan
+        with patch.object(orchestrator, '_update_session', return_value=None), \
+             patch('aris.core.research_orchestrator.logger'):
+            # Setup high-cost hops
+            mock_plan = MagicMock()
+            mock_plan.hypotheses = [MagicMock()]
+            mock_reasoning_engine.analyze_query.return_value = mock_plan
 
-        mock_hop_result = MagicMock()
-        mock_hop_result.evidence = []
-        mock_hop_result.hypothesis_results = []
-        mock_hop_result.synthesis = MagicMock()
-        mock_hop_result.synthesis.confidence = 0.50  # Low confidence
-        mock_hop_result.synthesis.key_findings = []
-        mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
+            mock_hop_result = MagicMock()
+            mock_hop_result.evidence = []
+            mock_hop_result.hypothesis_results = []
+            mock_hop_result.synthesis = MagicMock()
+            mock_hop_result.synthesis.confidence = 0.50  # Low confidence
+            mock_hop_result.synthesis.key_findings = []
+            mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
 
-        mock_synthesis = MagicMock()
-        mock_synthesis.key_findings = []
-        mock_synthesis.remaining_gaps = []
-        mock_synthesis.recommendations = []
-        mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
+            mock_synthesis = MagicMock()
+            mock_synthesis.key_findings = []
+            mock_synthesis.remaining_gaps = []
+            mock_synthesis.recommendations = []
+            mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
 
-        mock_document = MagicMock()
-        mock_document.file_path = Path("research/test.md")
-        orchestrator.document_store.create_document.return_value = mock_document
+            mock_document = MagicMock()
+            mock_document.file_path = Path("research/test.md")
+            orchestrator.document_store.create_document.return_value = mock_document
 
-        # Execute with very low budget
-        result = await orchestrator.execute_research(
-            query="Test query",
-            depth="standard",
-            max_cost=0.01  # Very low budget
-        )
+            # Execute with very low budget
+            result = await orchestrator.execute_research(
+                query="Test query",
+                depth="standard",
+                max_cost=0.01  # Very low budget
+            )
 
-        # Should warn about budget
-        assert len(result.warnings) > 0
-        assert any("budget" in w.lower() for w in result.warnings)
+            # Should warn about budget
+            assert len(result.warnings) > 0
+            assert any("budget" in w.lower() for w in result.warnings)
 
     @pytest.mark.asyncio
     async def test_execute_research_handles_errors(self, orchestrator, mock_reasoning_engine):
@@ -268,48 +307,50 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_progress_tracking(self, orchestrator, mock_reasoning_engine):
         """Test progress events are emitted."""
-        # Setup mocks
-        mock_plan = MagicMock()
-        mock_plan.hypotheses = []
-        mock_reasoning_engine.analyze_query.return_value = mock_plan
+        with patch.object(orchestrator, '_update_session', return_value=None), \
+             patch('aris.core.research_orchestrator.logger'):
+            # Setup mocks
+            mock_plan = MagicMock()
+            mock_plan.hypotheses = []
+            mock_reasoning_engine.analyze_query.return_value = mock_plan
 
-        mock_hop_result = MagicMock()
-        mock_hop_result.evidence = []
-        mock_hop_result.hypothesis_results = []
-        mock_hop_result.synthesis = MagicMock()
-        mock_hop_result.synthesis.confidence = 0.75
-        mock_hop_result.synthesis.key_findings = []
-        mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
+            mock_hop_result = MagicMock()
+            mock_hop_result.evidence = []
+            mock_hop_result.hypothesis_results = []
+            mock_hop_result.synthesis = MagicMock()
+            mock_hop_result.synthesis.confidence = 0.75
+            mock_hop_result.synthesis.key_findings = []
+            mock_reasoning_engine.execute_research_hop.return_value = mock_hop_result
 
-        mock_synthesis = MagicMock()
-        mock_synthesis.key_findings = []
-        mock_synthesis.remaining_gaps = []
-        mock_synthesis.recommendations = []
-        mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
+            mock_synthesis = MagicMock()
+            mock_synthesis.key_findings = []
+            mock_synthesis.remaining_gaps = []
+            mock_synthesis.recommendations = []
+            mock_reasoning_engine.sequential.synthesize_findings.return_value = mock_synthesis
 
-        mock_document = MagicMock()
-        mock_document.file_path = Path("research/test.md")
-        orchestrator.document_store.create_document.return_value = mock_document
+            mock_document = MagicMock()
+            mock_document.file_path = Path("research/test.md")
+            orchestrator.document_store.create_document.return_value = mock_document
 
-        # Track progress events
-        events = []
-        def track_event(event):
-            events.append(event)
+            # Track progress events
+            events = []
+            def track_event(event):
+                events.append(event)
 
-        orchestrator.progress_tracker.register_callback(track_event)
+            orchestrator.progress_tracker.register_callback(track_event)
 
-        # Execute research
-        await orchestrator.execute_research(
-            query="Test query",
-            depth="quick",
-            max_cost=None
-        )
+            # Execute research
+            await orchestrator.execute_research(
+                query="Test query",
+                depth="quick",
+                max_cost=None
+            )
 
-        # Verify progress events
-        assert len(events) > 0
-        event_types = [e.event_type for e in events]
-        assert "started" in event_types or event_types[0].value == "started"
-        assert "completed" in event_types or event_types[-1].value == "completed"
+            # Verify progress events
+            assert len(events) > 0
+            event_types = [e.event_type for e in events]
+            assert "started" in event_types or event_types[0].value == "started"
+            assert "completed" in event_types or event_types[-1].value == "completed"
 
 
 class TestDocumentFormatting:
@@ -334,22 +375,22 @@ class TestDocumentFormatting:
 
         hypothesis = Hypothesis(
             statement="Test hypothesis",
-            prior_confidence=0.5,
+            confidence_prior=0.5,
             evidence_required=["test"]
         )
 
         hyp_result = HypothesisResult(
             hypothesis=hypothesis,
-            supported=True,
-            posterior_confidence=0.8,
-            supporting_evidence=["evidence1"],
-            contradicting_evidence=[]
+            confidence_posterior=0.8,
+            supporting_evidence=[{"source": "evidence1", "text": "Supporting text"}],
+            contradicting_evidence=[],
+            conclusion="Hypothesis supported by evidence"
         )
 
         synthesis = Synthesis(
             confidence=0.75,
             key_findings=["Finding 1", "Finding 2"],
-            remaining_gaps=[],
+            gaps_remaining=[],
             recommendations=[]
         )
 
@@ -360,7 +401,7 @@ class TestDocumentFormatting:
             synthesis=synthesis
         )
 
-        context = ReasoningContext()
+        context = ReasoningContext(query="Test query")
         context.add_hop_result(hop_result)
         context.final_synthesis = synthesis
 
@@ -379,22 +420,24 @@ class TestDocumentFormatting:
         """Test formatting includes gaps and recommendations."""
         from aris.mcp.reasoning_schemas import ReasoningContext, Synthesis
 
+        query = "Test query"  # Must be ≥5 chars
+
         session = ResearchSession(
-            query=ResearchQuery(query_text="Test", depth=ResearchDepth.QUICK),
+            query=ResearchQuery(query_text=query, depth=ResearchDepth.QUICK),
             budget_target=0.20,
         )
 
         synthesis = Synthesis(
             confidence=0.60,
             key_findings=["Finding"],
-            remaining_gaps=["Gap 1", "Gap 2"],
+            gaps_remaining=["Gap 1", "Gap 2"],
             recommendations=["Rec 1"]
         )
 
-        context = ReasoningContext()
+        context = ReasoningContext(query=query)
         context.final_synthesis = synthesis
 
-        content = orchestrator._format_research_findings(context, "Test", session)
+        content = orchestrator._format_research_findings(context, query, session)
 
         assert "Remaining Questions" in content
         assert "Gap 1" in content

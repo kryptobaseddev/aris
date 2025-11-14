@@ -244,8 +244,8 @@ class TestDiffOperations:
         diff = git_manager.get_diff(doc_path)
 
         assert diff is not None
-        assert "-Committed" in diff
-        assert "+Modified" in diff
+        assert "-# Committed" in diff
+        assert "+# Modified" in diff
 
 
 class TestFileRestore:
