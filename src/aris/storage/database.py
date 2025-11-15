@@ -81,7 +81,7 @@ class DatabaseManager:
 
         logger.info(f"Database manager initialized: {self.database_path}")
 
-    async def initialize(self) -> None:
+    def initialize(self) -> None:
         """Initialize database and create tables.
 
         This is a convenience method that wraps create_tables() for
