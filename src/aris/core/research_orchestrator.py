@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
+from aris.core.cost_manager import CostManager
 from aris.core.progress_tracker import ProgressEventType, ProgressTracker
 from aris.core.reasoning_engine import ReasoningEngine
 from aris.models.config import ArisConfig
@@ -26,6 +27,7 @@ from aris.models.research import (
     ResearchSession,
 )
 from aris.storage.database import DatabaseManager
+from aris.storage.session_manager import SessionManager
 
 if TYPE_CHECKING:
     from aris.storage.document_store import DocumentStore
@@ -78,6 +80,8 @@ class ResearchOrchestrator:
 
         self.config = config
         self.db = DatabaseManager(Path(config.database_path))
+        self.session_manager = SessionManager(self.db)
+        self.cost_manager = CostManager(self.session_manager)
         self.document_store = DocumentStore(config)
         self.document_finder = DocumentFinder(config)
         self.reasoning_engine = ReasoningEngine(config)
@@ -237,6 +241,17 @@ class ResearchOrchestrator:
                 hop_num, max_hops, "Gathering evidence and analyzing..."
             )
 
+            # Check budget before proceeding
+            can_proceed = await self.cost_manager.can_perform_operation(
+                session_id=session.session_id,
+                operation_cost=0.05,  # Conservative estimate per hop
+                budget_limit=session.budget_target
+            )
+            if not can_proceed:
+                logger.warning(f"Budget limit reached for session {session.session_id}")
+                self.progress_tracker.warning("Budget limit reached, stopping research")
+                break
+
             hop_started = datetime.utcnow()
 
             # Execute hop via reasoning engine
@@ -245,6 +260,17 @@ class ResearchOrchestrator:
             )
 
             hop_completed = datetime.utcnow()
+
+            # Track hop cost (placeholder cost - actual costs from API responses when available)
+            estimated_hop_cost = 0.01 + (len(hop_result.evidence) * 0.005)
+            await self.cost_manager.track_hop_cost(
+                session_id=session.session_id,
+                hop_number=hop_num,
+                tavily_searches=len(hop_result.evidence),
+                llm_tokens=1000,  # Conservative estimate
+                tavily_cost_override=None,  # Let CostManager calculate
+                llm_cost_override=None  # Let CostManager calculate
+            )
 
             # Create database hop record
             db_hop = ResearchHop(
@@ -255,7 +281,7 @@ class ResearchOrchestrator:
                 sources_found_count=len(hop_result.evidence),
                 confidence_before=context.overall_confidence,
                 confidence_after=hop_result.synthesis.confidence,
-                cost=0.0,  # Initialize cost
+                cost=estimated_hop_cost,
             )
 
             # Add hop to session

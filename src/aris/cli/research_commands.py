@@ -94,7 +94,8 @@ async def _execute_research(
         ResearchResult with findings and metrics
     """
     # Get config and initialize orchestrator
-    config = ConfigManager.get_instance().get_config()
+    config_mgr = ConfigManager.get_instance()
+    config = config_mgr.load()
     orchestrator = ResearchOrchestrator(config)
 
     # Setup progress tracking
@@ -203,7 +204,8 @@ def status(ctx: click.Context, session_id: str) -> None:
 
     try:
         # Get session status
-        config = ConfigManager.get_instance().get_config()
+        config_mgr = ConfigManager.get_instance()
+        config = config_mgr.load()
         orchestrator = ResearchOrchestrator(config)
 
         from uuid import UUID
